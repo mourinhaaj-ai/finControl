@@ -129,40 +129,41 @@
       </div>
 
       <div class="card"><h3 style="color:white;margin-bottom:20px">📋 Histórico de Transações</h3><div id="transactionsList"></div></div>
-
     </div>
   </div>
 
   <script>
-    // CONFIGURAÇÃO SUPABASE (protegida contra múltiplas declarações)
+    let supabase = null;
+    let currentUser = null;
+    let pieChart = null;
+    let lineChart = null;
+
     const SUPABASE_URL = 'https://rldcnqvsctwkphiribqp.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsZGNucXZzY3R3a3BoaXJpYnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTkxOTgsImV4cCI6MjA5NzQzNTE5OH0.rUOM_aNjCMRFHALyzEbKPXvIm_6We_QMl-bnw5HC8Dw';
-
-    if (!window.__FINCONTROL_SUPABASE__) {
-      const { createClient } = window.supabase;
-      window.__FINCONTROL_SUPABASE__ = createClient(SUPABASE_URL, SUPABASE_KEY);
-    }
-    const supabase = window.__FINCONTROL_SUPABASE__;
 
     const categorias = {
       receita: ['Salário','Freelance','Investimentos','Bônus','Outros'],
       despesa: ['Alimentação','Transporte','Moradia','Saúde','Educação','Lazer','Utilities','Outros']
     };
 
-    let currentUser = null;
-    let pieChart = null;
-    let lineChart = null;
-
-    document.addEventListener('DOMContentLoaded', ()=>{ setTodayDate(); checkLoggedIn(); attachListeners(); });
+    async function initApp() {
+      if (window.supabase) {
+        const { createClient } = window.supabase;
+        supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+      setTodayDate();
+      await checkLoggedIn();
+      attachListeners();
+    }
 
     function attachListeners(){
       const $ = id => document.getElementById(id);
-      if($('btnEntrar')) $('btnEntrar').addEventListener('click', ()=> showPage('loginPage'));
-      if($('btnCriar')) $('btnCriar').addEventListener('click', ()=> showPage('signupPage'));
+      if($('btnEntrar')) $('btnEntrar').addEventListener('click', () => showPage('loginPage'));
+      if($('btnCriar')) $('btnCriar').addEventListener('click', () => showPage('signupPage'));
       if($('btnDoLogin')) $('btnDoLogin').addEventListener('click', handleLogin);
       if($('btnDoSignup')) $('btnDoSignup').addEventListener('click', handleSignup);
-      if($('linkToSignup')) $('linkToSignup').addEventListener('click', e=>{ e.preventDefault(); showPage('signupPage'); });
-      if($('linkToLogin')) $('linkToLogin').addEventListener('click', e=>{ e.preventDefault(); showPage('loginPage'); });
+      if($('linkToSignup')) $('linkToSignup').addEventListener('click', e => { e.preventDefault(); showPage('signupPage'); });
+      if($('linkToLogin')) $('linkToLogin').addEventListener('click', e => { e.preventDefault(); showPage('loginPage'); });
       if($('btnLogout')) $('btnLogout').addEventListener('click', handleLogout);
       if($('transactionType')) $('transactionType').addEventListener('change', updateCategories);
       if($('btnAddTransaction')) $('btnAddTransaction').addEventListener('click', handleAddTransaction);
@@ -171,15 +172,19 @@
       if($('filterDateStart')) $('filterDateStart').addEventListener('change', applyFilters);
       if($('filterDateEnd')) $('filterDateEnd').addEventListener('change', applyFilters);
       if($('filterCategory')) $('filterCategory').addEventListener('change', applyFilters);
-      // safe global keydown handler (silencia erros de extensões)
-      document.addEventListener('keydown', e=>{
-        try { if(typeof handleGlobalKeyDown==='function') handleGlobalKeyDown(e); } catch(err){ console.warn('global key handler error (silenced)',err); }
-      });
     }
 
-    function setTodayDate(){ const today = new Date().toISOString().split('T')[0]; const d = document.getElementById('transactionDate'); if(d) d.value = today; }
+    function setTodayDate(){ 
+      const today = new Date().toISOString().split('T')[0]; 
+      const d = document.getElementById('transactionDate'); 
+      if(d) d.value = today; 
+    }
 
-    function showPage(id){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); const el = document.getElementById(id); if(el) el.classList.add('active'); }
+    function showPage(id){ 
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
+      const el = document.getElementById(id); 
+      if(el) el.classList.add('active'); 
+    }
     window.showPage = showPage;
 
     async function handleSignup(){
@@ -214,13 +219,21 @@
     }
     window.handleLogin = handleLogin;
 
-    async function handleLogout(){ try{ await supabase.auth.signOut(); }catch(e){} currentUser=null; showPage('homePage'); }
+    async function handleLogout(){ 
+      try{ await supabase.auth.signOut(); }catch(e){} 
+      currentUser = null; 
+      showPage('homePage'); 
+    }
     window.handleLogout = handleLogout;
 
     async function checkLoggedIn(){
       try{
         const { data: { session } = {} } = await supabase.auth.getSession();
-        if(session){ currentUser = { id: session.user.id, email: session.user.email }; await loadDashboard(); showPage('dashboardPage'); }
+        if(session){ 
+          currentUser = { id: session.user.id, email: session.user.email }; 
+          await loadDashboard(); 
+          showPage('dashboardPage'); 
+        }
       }catch(e){ console.error('checkLoggedIn:',e); }
     }
 
@@ -237,9 +250,13 @@
       try{
         const { error } = await supabase.from('transactions').insert([{ user_id: currentUser.id, type, category, description, amount, date }]);
         if(error) throw error;
-        document.getElementById('transactionType').value=''; document.getElementById('transactionCategory').innerHTML='<option value="">Selecione...</option>';
-        document.getElementById('transactionDescription').value=''; document.getElementById('transactionAmount').value=''; setTodayDate();
-        showSuccess(ok,'Transação adicionada!'); await loadDashboard();
+        document.getElementById('transactionType').value=''; 
+        document.getElementById('transactionCategory').innerHTML='<option value="">Selecione...</option>';
+        document.getElementById('transactionDescription').value=''; 
+        document.getElementById('transactionAmount').value=''; 
+        setTodayDate();
+        showSuccess(ok,'Transação adicionada!'); 
+        await loadDashboard();
       }catch(e){ showError(err,'Erro: '+(e.message||e)); }
     }
     window.handleAddTransaction = handleAddTransaction;
@@ -249,14 +266,24 @@
       const categorySelect = document.getElementById('transactionCategory');
       const filterCategorySelect = document.getElementById('filterCategory');
       if(!categorySelect||!filterCategorySelect) return;
-      categorySelect.innerHTML = '<option value="">Selecione...</option>'; filterCategorySelect.innerHTML = '<option value="">Todas</option>';
-      if(type && Array.isArray(categorias[type])) categorias[type].forEach(cat=>{ categorySelect.innerHTML+=`<option value="${cat}">${cat}</option>`; filterCategorySelect.innerHTML+=`<option value="${cat}">${cat}</option>`; });
+      categorySelect.innerHTML = '<option value="">Selecione...</option>'; 
+      filterCategorySelect.innerHTML = '<option value="">Todas</option>';
+      if(type && Array.isArray(categorias[type])) {
+        categorias[type].forEach(cat => { 
+          categorySelect.innerHTML += `<option value="${cat}">${cat}</option>`; 
+          filterCategorySelect.innerHTML += `<option value="${cat}">${cat}</option>`; 
+        });
+      }
     }
     window.updateCategories = updateCategories;
 
     async function deleteTransaction(id){
       if(!confirm('Deletar?')) return;
-      try{ const { error } = await supabase.from('transactions').delete().eq('id',id); if(error) throw error; await loadDashboard(); }catch(e){ alert('Erro: '+(e.message||e)); }
+      try{ 
+        const { error } = await supabase.from('transactions').delete().eq('id',id); 
+        if(error) throw error; 
+        await loadDashboard(); 
+      }catch(e){ alert('Erro: '+(e.message||e)); }
     }
     window.deleteTransaction = deleteTransaction;
 
@@ -265,14 +292,28 @@
       const name = document.getElementById('goalName')?.value?.trim() || '';
       const amount = parseFloat(document.getElementById('goalAmount')?.value || '');
       if(!name||isNaN(amount)||amount<=0){ alert('Preencha todos os campos corretamente.'); return; }
-      try{ const { error } = await supabase.from('goals').insert([{ user_id: currentUser.id, name, target_amount: amount, current_amount: 0 }]); if(error) throw error; document.getElementById('goalName').value=''; document.getElementById('goalAmount').value=''; await loadDashboard(); }catch(e){ alert('Erro: '+(e.message||e)); }
+      try{ 
+        const { error } = await supabase.from('goals').insert([{ user_id: currentUser.id, name, target_amount: amount, current_amount: 0 }]); 
+        if(error) throw error; 
+        document.getElementById('goalName').value=''; 
+        document.getElementById('goalAmount').value=''; 
+        await loadDashboard(); 
+      }catch(e){ alert('Erro: '+(e.message||e)); }
     }
     window.handleAddGoal = handleAddGoal;
 
-    async function deleteGoal(id){ if(!confirm('Deletar?')) return; try{ const { error } = await supabase.from('goals').delete().eq('id',id); if(error) throw error; await loadDashboard(); }catch(e){ alert('Erro: '+(e.message||e)); } }
+    async function deleteGoal(id){ 
+      if(!confirm('Deletar?')) return; 
+      try{ 
+        const { error } = await supabase.from('goals').delete().eq('id',id); 
+        if(error) throw error; 
+        await loadDashboard(); 
+      }catch(e){ alert('Erro: '+(e.message||e)); } 
+    }
     window.deleteGoal = deleteGoal;
 
-    function applyFilters(){ loadDashboard(); } window.applyFilters = applyFilters;
+    function applyFilters(){ loadDashboard(); } 
+    window.applyFilters = applyFilters;
 
     async function loadDashboard(){
       if(!currentUser) return;
@@ -282,18 +323,18 @@
 
         document.getElementById('userName').textContent = (currentUser.email||'Usuário').split('@')[0];
 
-        const receitas = (transactions||[]).filter(t=>t.type==='receita').reduce((s,t)=>s+(Number(t.amount)||0),0);
-        const despesas = (transactions||[]).filter(t=>t.type==='despesa').reduce((s,t)=>s+(Number(t.amount)||0),0);
+        const receitas = (Array.isArray(transactions) ? transactions : []).filter(t => t.type==='receita').reduce((s,t) => s+(Number(t.amount)||0),0);
+        const despesas = (Array.isArray(transactions) ? transactions : []).filter(t => t.type==='despesa').reduce((s,t) => s+(Number(t.amount)||0),0);
         const saldo = receitas - despesas;
 
         document.getElementById('totalReceitas').textContent = `R$ ${receitas.toFixed(2)}`;
         document.getElementById('totalDespesas').textContent = `R$ ${despesas.toFixed(2)}`;
         document.getElementById('totalSaldo').textContent = `R$ ${saldo.toFixed(2)}`;
-        document.getElementById('totalMetas').textContent = (goals||[]).length;
+        document.getElementById('totalMetas').textContent = (Array.isArray(goals) ? goals : []).length;
 
-        const filtered = getFilteredTransactions(transactions||[]);
+        const filtered = getFilteredTransactions(Array.isArray(transactions) ? transactions : []);
         const listDiv = document.getElementById('transactionsList');
-        listDiv.innerHTML = (filtered && filtered.length) ? filtered.map(t=>`
+        listDiv.innerHTML = (Array.isArray(filtered) && filtered.length > 0) ? filtered.map(t => `
           <div class="transaction-item">
             <div style="flex:1">
               <strong style="color:white">${t.description}</strong>
@@ -307,7 +348,7 @@
         `).join('') : '<p style="color:rgba(255,255,255,.5);text-align:center">Nenhuma transação</p>';
 
         const goalsDiv = document.getElementById('goalsList');
-        goalsDiv.innerHTML = (goals && goals.length) ? goals.map(goal=>{
+        goalsDiv.innerHTML = (Array.isArray(goals) && goals.length > 0) ? goals.map(goal => {
           const progress = goal.target_amount ? (Number(goal.current_amount||0)/Number(goal.target_amount||1))*100 : 0;
           return `
             <div class="meta-item">
@@ -321,47 +362,117 @@
           `;
         }).join('') : '<p style="color:rgba(255,255,255,.5)">Nenhuma meta</p>';
 
-        updateCharts(transactions||[]);
+        updateCharts(Array.isArray(transactions) ? transactions : []);
       }catch(e){ console.error('loadDashboard:',e); }
     }
 
     window.loadDashboard = loadDashboard;
 
     function getFilteredTransactions(transactions){
-      let filtered = Array.isArray(transactions)?transactions.slice():[];
+      let filtered = Array.isArray(transactions) ? transactions.slice() : [];
       const type = document.getElementById('filterType')?.value || '';
-      if(type) filtered = filtered.filter(t=>t.type===type);
+      if(type) filtered = filtered.filter(t => t.type===type);
       const category = document.getElementById('filterCategory')?.value || '';
-      if(category) filtered = filtered.filter(t=>t.category===category);
+      if(category) filtered = filtered.filter(t => t.category===category);
       const dateStart = document.getElementById('filterDateStart')?.value || '';
-      if(dateStart) filtered = filtered.filter(t=>t.date >= dateStart);
+      if(dateStart) filtered = filtered.filter(t => t.date >= dateStart);
       const dateEnd = document.getElementById('filterDateEnd')?.value || '';
-      if(dateEnd) filtered = filtered.filter(t=>t.date <= dateEnd);
+      if(dateEnd) filtered = filtered.filter(t => t.date <= dateEnd);
       return filtered;
     }
 
     function updateCharts(transactions){
-      const tx = Array.isArray(transactions)?transactions:[];
-      const receitas = tx.filter(t=>t.type==='receita').reduce((s,t)=>s+(Number(t.amount)||0),0);
-      const despesas = tx.filter(t=>t.type==='despesa').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const tx = Array.isArray(transactions) ? transactions : [];
+      const receitas = tx.filter(t => t.type==='receita').reduce((s,t) => s+(Number(t.amount)||0),0);
+      const despesas = tx.filter(t => t.type==='despesa').reduce((s,t) => s+(Number(t.amount)||0),0);
 
       const pieCtx = document.getElementById('pieChart');
       if(!pieCtx) return;
       if(pieChart) pieChart.destroy();
-      pieChart = new Chart(pieCtx.getContext('2d'),{ type:'doughnut', data:{ labels:['Receitas','Despesas'], datasets:[{ data:[receitas||0,despesas||0], backgroundColor:['#4ecdc4','#ff6b6b'], borderColor:['#4ecdc4','#ff6b6b'], borderWidth:2 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'white' } } } } );
+      pieChart = new Chart(pieCtx.getContext('2d'),{ 
+        type:'doughnut', 
+        data:{ 
+          labels:['Receitas','Despesas'], 
+          datasets:[{ 
+            data:[receitas||0,despesas||0], 
+            backgroundColor:['#4ecdc4','#ff6b6b'], 
+            borderColor:['#4ecdc4','#ff6b6b'], 
+            borderWidth:2 
+          }] 
+        }, 
+        options:{ 
+          responsive:true, 
+          maintainAspectRatio:false, 
+          plugins:{ 
+            legend:{ 
+              labels:{ color:'white' } 
+            } 
+          } 
+        } 
+      });
 
       const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
       const monthlyData = new Array(12).fill(0);
-      tx.forEach(t=>{ const m = new Date(t.date).getMonth(); monthlyData[m] += (t.type==='receita'?Number(t.amount)||0:-(Number(t.amount)||0)); });
+      tx.forEach(t => { 
+        const m = new Date(t.date).getMonth(); 
+        monthlyData[m] += (t.type==='receita' ? Number(t.amount)||0 : -(Number(t.amount)||0)); 
+      });
 
       const lineCtx = document.getElementById('lineChart');
       if(!lineCtx) return;
       if(lineChart) lineChart.destroy();
-      lineChart = new Chart(lineCtx.getContext('2d'),{ type:'line', data:{ labels:months, datasets:[{ label:'Fluxo Mensal', data:monthlyData, borderColor:'#667eea', backgroundColor:'rgba(102,126,234,0.1)', borderWidth:2, fill:true, tension:0.4 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'white' } } }, scales:{ y:{ ticks:{ color:'white' }, grid:{ color:'rgba(255,255,255,0.1)'} }, x:{ ticks:{ color:'white' }, grid:{ color:'rgba(255,255,255,0.1)'} } } } );
+      lineChart = new Chart(lineCtx.getContext('2d'),{ 
+        type:'line', 
+        data:{ 
+          labels:months, 
+          datasets:[{ 
+            label:'Fluxo Mensal', 
+            data:monthlyData, 
+            borderColor:'#667eea', 
+            backgroundColor:'rgba(102,126,234,0.1)', 
+            borderWidth:2, 
+            fill:true, 
+            tension:0.4 
+          }] 
+        }, 
+        options:{ 
+          responsive:true, 
+          maintainAspectRatio:false, 
+          plugins:{ 
+            legend:{ 
+              labels:{ color:'white' } 
+            } 
+          }, 
+          scales:{ 
+            y:{ 
+              ticks:{ color:'white' }, 
+              grid:{ color:'rgba(255,255,255,0.1)'} 
+            }, 
+            x:{ 
+              ticks:{ color:'white' }, 
+              grid:{ color:'rgba(255,255,255,0.1)'} 
+            } 
+          } 
+        } 
+      });
     }
 
-    function showError(el,msg){ if(!el) return alert(msg); el.textContent=msg; el.classList.remove('hidden','success'); el.classList.add('error'); }
-    function showSuccess(el,msg){ if(!el) return alert(msg); el.textContent=msg; el.classList.remove('hidden','error'); el.classList.add('success'); setTimeout(()=>el.classList.add('hidden'),3000); }
+    function showError(el,msg){ 
+      if(!el) return alert(msg); 
+      el.textContent = msg; 
+      el.classList.remove('hidden','success'); 
+      el.classList.add('error'); 
+    }
+
+    function showSuccess(el,msg){ 
+      if(!el) return alert(msg); 
+      el.textContent = msg; 
+      el.classList.remove('hidden','error'); 
+      el.classList.add('success'); 
+      setTimeout(() => el.classList.add('hidden'), 3000); 
+    }
+
+    document.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
 </html>
